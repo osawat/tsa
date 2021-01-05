@@ -91,6 +91,7 @@ def generate_random_curves(xs, sigma=0.2, n_knots=4, random_seed=None):
     if random_seed is not None:
         np.random.seed(random_seed)
     x = np.tile(np.arange(0, x_size, (x_size - 1) / (n_knots + 1)).reshape(-1, 1), reps=(1, x_dim))
+    # print("generate_random_curves:sigma", sigma)
     y = np.random.normal(loc=1.0, scale=sigma, size=(n_knots + 2, x_dim))
     x_folds = []
     for i in range(x_dim):
@@ -113,9 +114,9 @@ def magnitude_warp(xs, sigma=0.2, individual=False, random_seed=None):
     if random_seed is not None:
         np.random.seed(random_seed)
     if individual:
-        return xs * generate_random_curves(xs, sigma)
+        return xs * generate_random_curves(xs, sigma=sigma)
     else:
-        return xs * generate_random_curves(np.zeros((x_size, 1)), sigma)
+        return xs * generate_random_curves(np.zeros((x_size, 1)), sigma=sigma)
 
 
 class TsMagnitudeWarp(BaseEstimator, TransformerMixin):
@@ -151,7 +152,8 @@ def distort_time_steps(xs, sigma=0.2, n_knots=4, random_seed=None):
     """
     if random_seed is not None:
         np.random.seed(random_seed)
-    tt = generate_random_curves(xs, sigma, n_knots=n_knots)  # Regard these samples around 1 as time intervals
+    # TODO
+    tt = generate_random_curves(xs, sigma=0.2, n_knots=n_knots)  # Regard these samples around 1 as time intervals
     tt_cum = np.cumsum(tt, axis=0)  # Add intervals to make a cumulative graph
     # Make the last value to have X.shape[0]
     t_scale = (xs.shape[0] - 1) / tt_cum[-1, :]
@@ -177,13 +179,14 @@ def time_warp(xs, sigma=0.2, n_knots=4, individual=False, kind="linear", random_
     xs_new = []  # return array
     if individual:
         for i in range(x_dim):
-            tt_new = distort_time_steps(xs, sigma, n_knots)  # 非等間隔の時系列
+            print("time_warp:individual:sigma", sigma)
+            tt_new = distort_time_steps(xs, sigma=sigma, n_knots=n_knots)  # 非等間隔の時系列
             func = interp1d(tt_new[:, i], xs[:, i], kind=kind, fill_value="extrapolate")
             xs_new.append(func(np.arange(x_size)))  # 等間隔になるようにデータ補間
         return np.array(xs_new).transpose()
     else:
         xs_0 = xs[:, 0].reshape(-1, 1)
-        tt_new = distort_time_steps(xs_0, sigma, n_knots)  # 非等間隔の時系列
+        tt_new = distort_time_steps(xs_0, sigma=sigma, n_knots=n_knots)  # 非等間隔の時系列
         for i in range(x_dim):
             func = interp1d(tt_new[:, 0], xs[:, i], kind=kind, fill_value="extrapolate")
             xs_new.append(func(np.arange(x_size)))  # 等間隔になるようにデータ補間
@@ -240,19 +243,19 @@ def time_warp_Xy(xs, ys, sigma=0.2, n_knots=4, individual=False, kind="linear"):
     """
     x_size, x_dim = xs.shape[0], xs.shape[1]
     if individual:
-        tt_new = distort_time_steps(xs, sigma, n_knots)  # 非等間隔の時系列
+        tt_new = distort_time_steps(xs, sigma=sigma, n_knots=n_knots)  # 非等間隔の時系列
         xs_new = []
         for i in range(x_dim):
             func = interp1d(tt_new[:, i], xs[:, i], kind=kind, fill_value="extrapolate")
             xs_new.append(func(np.arange(x_size)))  # 等間隔になるようにデータ補間
 
-        tt_new = distort_time_steps(ys, sigma, n_knots)
+        tt_new = distort_time_steps(ys, sigma=sigma, n_knots=n_knots)
         func = interp1d(tt_new[:, 0], ys[:, 0], kind="nearest", fill_value="extrapolate")
         ys_new = func(np.arange(x_size))
         return np.array(xs_new).transpose(), ys_new
     else:
         xs_std = xs[:, 0].reshape(-1, 1)
-        tt_new = distort_time_steps(xs_std, sigma, n_knots)  # 非等間隔の時系列
+        tt_new = distort_time_steps(xs_std, sigma=sigma, n_knots=n_knots)  # 非等間隔の時系列
         xs_new = []
         for i in range(x_dim):
             func = interp1d(tt_new[:, 0], xs[:, i], kind=kind, fill_value="extrapolate")
@@ -260,7 +263,7 @@ def time_warp_Xy(xs, ys, sigma=0.2, n_knots=4, individual=False, kind="linear"):
 
         func = interp1d(tt_new[:, 0], ys[:, 0], kind="nearest", fill_value="extrapolate")
         ys_new = func(np.arange(x_size))
-        return np.array(xs_new).transpose(), ys_new
+        return np.array(xs_new).transpose(), ys_new.reshape(-1, 1)
 
 
 def time_stretch(xs, scale=2., kind='linear', debug_flag=False):
